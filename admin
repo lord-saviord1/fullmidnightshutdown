@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>FMS Admin — Ticket Manager</title>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Courier+Prime:wght@400;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{
+    --paper:#efe7d3; --ink:#1a1512; --ink-soft:#463b30; --red:#c0271a; --purple:#7c2fb0; --pink:#ff3fa8; --card:#f5efdf;
+  }
+  *{box-sizing:border-box;}
+  body{background:var(--paper);color:var(--ink);font-family:'Courier Prime',monospace;margin:0;padding:24px;}
+  h1{font-family:'Anton',sans-serif;text-transform:uppercase;font-size:1.8rem;margin-bottom:6px;}
+  h2{font-family:'Anton',sans-serif;text-transform:uppercase;font-size:1.2rem;margin:36px 0 14px;}
+  .sub{color:var(--ink-soft);font-size:0.85rem;margin-bottom:30px;}
+  .card{background:var(--card);border:3px solid var(--ink);box-shadow:6px 6px 0 var(--ink);padding:24px;max-width:440px;margin-bottom:16px;}
+  label{display:block;font-size:0.75rem;text-transform:uppercase;letter-spacing:0.06em;color:var(--ink-soft);margin-bottom:6px;}
+  input{width:100%;padding:11px 12px;border:2px solid var(--ink);background:var(--paper);font-family:'Courier Prime',monospace;font-size:0.95rem;margin-bottom:14px;}
+  button{padding:12px 22px;background:var(--ink);color:var(--paper);border:2px solid var(--ink);font-family:'Anton',sans-serif;text-transform:uppercase;letter-spacing:0.03em;cursor:pointer;font-size:0.9rem;}
+  button:hover{background:var(--purple);border-color:var(--purple);}
+  #app{display:none;}
+  .ticket-row{display:flex;gap:14px;align-items:flex-end;margin-bottom:10px;}
+  .ticket-row .field{flex:1;}
+  .ticket-row .field label{margin-bottom:4px;}
+  .ticket-row .field input{margin-bottom:0;}
+  .ticket-name{font-family:'Anton',sans-serif;text-transform:uppercase;font-size:1.1rem;margin-bottom:14px;}
+  #status{margin-top:10px;font-size:0.85rem;}
+  .ok{color:#1a7a2a;} .err{color:var(--red);}
+  #logout{background:none;border:none;color:var(--red);text-decoration:underline;cursor:pointer;font-family:'Courier Prime',monospace;font-size:0.8rem;padding:0;margin-top:30px;}
+
+  table{width:100%;border-collapse:collapse;background:var(--card);border:2px solid var(--ink);}
+  th,td{padding:10px 12px;text-align:left;font-size:0.85rem;border-bottom:1px solid var(--ink);}
+  th{background:var(--ink);color:var(--paper);text-transform:uppercase;font-size:0.7rem;letter-spacing:0.05em;}
+  td.code{font-weight:700;color:var(--purple);}
+  tr.checked-in td{opacity:0.5;}
+  .checkin-btn{padding:6px 12px;font-size:0.7rem;background:var(--purple);border-color:var(--purple);}
+  .checkin-btn.done{background:#1a7a2a;border-color:#1a7a2a;cursor:default;}
+  #searchBox{max-width:440px;margin-bottom:18px;}
+  .empty{color:var(--ink-soft);font-size:0.85rem;padding:16px;}
+</style>
+</head>
+<body>
+
+<h1>FMS Ticket Manager</h1>
+<p class="sub">Edit ticket availability, and look up individual sales for gate check-in.</p>
+
+<!--
+  SETUP (one-time, in your Supabase project):
+  1. Authentication → Users → "Add user" — create your own login (email + password).
+  2. Run the SQL from the top of api/paystack-webhook.js to create the "tickets" and
+     "ticket_sales" tables and their policies, if you haven't already.
+  3. Fill in your Project URL and anon key below (same values as in index.html).
+-->
+<script>
+  const SUPABASE_URL = 'https://YOUR-PROJECT.supabase.co';
+  const SUPABASE_ANON_KEY = 'YOUR-ANON-PUBLIC-KEY';
+  const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  async function checkSession(){
+    const { data: { session } } = await supabase.auth.getSession();
+    if(session){
+      document.getElementById('loginCard').style.display = 'none';
+      document.getElementById('app').style.display = 'block';
+      loadTickets();
+      loadSales();
+    }
+  }
+
+  async function login(){
+    const email = document.getElementById('email').value.trim();
+    const password = document.getElementById('password').value;
+    const statusEl = document.getElementById('loginStatus');
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if(error){ statusEl.textContent = error.message; statusEl.className = 'err'; }
+    else { checkSession(); }
+  }
+
+  async function logout(){ await supabase.auth.signOut(); location.reload(); }
+
+  // ---- ticket availability ----
+  async function loadTickets(){
+    const { data, error } = await supabase.from('tickets').select('id,total,sold');
+    const container = document.getElementById('ticketList');
+    container.innerHTML = '';
+    if(error){ container.textContent = 'Error loading tickets: ' + error.message; return; }
+    data.forEach(row=>{
+      const div = document.createElement('div');
+      div.className = 'card';
+      div.innerHTML = `
+        <div class="ticket-name">${row.id}</div>
+        <div class="ticket-row">
+          <div class="field"><label>Total</label><input type="number" id="total-${row.id}" value="${row.total}"></div>
+          <div class="field"><label>Sold</label><input type="number" id="sold-${row.id}" value="${row.sold}"></div>
+        </div>
+        <button onclick="saveTicket('${row.id}')">Save</button>
+        <div id="status-${row.id}"></div>
+      `;
+      container.appendChild(div);
+    });
+  }
+
+  async function saveTicket(id){
+    const total = parseInt(document.getElementById('total-' + id).value, 10);
+    const sold = parseInt(document.getElementById('sold-' + id).value, 10);
+    const statusEl = document.getElementById('status-' + id);
+    const { error } = await supabase.from('tickets').update({ total, sold }).eq('id', id);
+    statusEl.textContent = error ? 'Failed: ' + error.message : 'Saved.';
+    statusEl.className = error ? 'err' : 'ok';
+  }
+
+  // ---- individual sales / gate check-in ----
+  let allSales = [];
+
+  async function loadSales(){
+    const { data, error } = await supabase.from('ticket_sales').select('*').order('created_at', { ascending: false });
+    if(error){
+      document.getElementById('salesTableWrap').innerHTML = `<p class="empty">Error loading sales: ${error.message}</p>`;
+      return;
+    }
+    allSales = data || [];
+    renderSales(allSales);
+  }
+
+  function renderSales(rows){
+    const wrap = document.getElementById('salesTableWrap');
+    if(!rows.length){
+      wrap.innerHTML = '<p class="empty">No ticket sales yet.</p>';
+      return;
+    }
+    const tableRows = rows.map(r => `
+      <tr class="${r.checked_in ? 'checked-in' : ''}" id="row-${r.id}">
+        <td class="code">${r.unique_code}</td>
+        <td>${r.buyer_name}</td>
+        <td>${r.buyer_email}</td>
+        <td>${r.ticket_type}</td>
+        <td>${new Date(r.created_at).toLocaleString()}</td>
+        <td>
+          <button class="checkin-btn ${r.checked_in ? 'done' : ''}" onclick="toggleCheckin('${r.id}', ${!r.checked_in})">
+            ${r.checked_in ? 'Checked In' : 'Check In'}
+          </button>
+        </td>
+      </tr>
+    `).join('');
+    wrap.innerHTML = `
+      <table>
+        <thead><tr><th>Code</th><th>Name</th><th>Email</th><th>Ticket</th><th>Purchased</th><th></th></tr></thead>
+        <tbody>${tableRows}</tbody>
+      </table>
+    `;
+  }
+
+  async function toggleCheckin(id, newState){
+    const { error } = await supabase.from('ticket_sales').update({ checked_in: newState }).eq('id', id);
+    if(!error){
+      const row = allSales.find(r => r.id === id);
+      if(row) row.checked_in = newState;
+      renderSales(currentFilter());
+    }
+  }
+
+  function currentFilter(){
+    const q = document.getElementById('searchBox').value.trim().toLowerCase();
+    if(!q) return allSales;
+    return allSales.filter(r =>
+      r.unique_code.toLowerCase().includes(q) ||
+      r.buyer_name.toLowerCase().includes(q) ||
+      r.buyer_email.toLowerCase().includes(q)
+    );
+  }
+
+  function onSearch(){ renderSales(currentFilter()); }
+
+  window.addEventListener('DOMContentLoaded', checkSession);
+</script>
+
+<div class="card" id="loginCard">
+  <label>Email</label>
+  <input type="email" id="email" placeholder="you@email.com">
+  <label>Password</label>
+  <input type="password" id="password">
+  <button onclick="login()">Log In</button>
+  <div id="loginStatus"></div>
+</div>
+
+<div id="app">
+  <h2>Ticket Availability</h2>
+  <div id="ticketList"></div>
+
+  <h2>Gate Check-In — Search by code, name, or email</h2>
+  <input type="text" id="searchBox" placeholder="e.g. FMS-7K2P9Q or Adaeze" oninput="onSearch()">
+  <div id="salesTableWrap"></div>
+
+  <button id="logout" onclick="logout()">Log out</button>
+</div>
+
+</body>
+</html>
