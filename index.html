@@ -229,36 +229,28 @@
   .marquee-band.b1 .icon{color:var(--pink);}
   .marquee-band.b2 .icon{color:var(--paper);}
 
-  /* ---------- COUNTDOWN — "page 2": a distinct, self-contained page rather than a full
-     scrolling section, so it reads as its own moment sliding in over the hero ---------- */
+  /* ---------- COUNTDOWN — "page 2": a smaller, self-contained card rather than a full section,
+     so it visibly reads as its own compact page sliding in over the hero ---------- */
   .countdown-section{
     position:sticky;top:0;min-height:100svh;margin-top:-100svh; /* lines up its sticky range with the hero above so both pin together */
     display:flex;align-items:center;justify-content:center;
-    background:radial-gradient(ellipse 85% 70% at 50% 45%, rgba(124,47,176,0.28), transparent),
-               radial-gradient(ellipse 60% 50% at 50% 100%, rgba(255,63,168,0.15), transparent),
-               var(--paper-2);
+    background:radial-gradient(ellipse 70% 60% at 50% 0%, rgba(124,47,176,0.14), transparent), var(--paper-2);
     will-change:transform;
   }
   .countdown-card{
-    text-align:center;max-width:640px;width:92%;padding:64px 44px;
-    background:var(--card);border:4px solid var(--ink);box-shadow:12px 12px 0 var(--purple);
+    text-align:center;max-width:460px;width:90%;padding:44px 32px;
+    background:var(--card);border:3px solid var(--ink);box-shadow:8px 8px 0 var(--purple);
   }
-  .countdown-section .section-tag{justify-content:center;font-size:0.9rem;}
-  .countdown-section h2.headline{margin:0 auto 44px;font-size:clamp(2rem,6vw,3.2rem);}
-  .countdown{display:flex;justify-content:center;gap:20px;flex-wrap:wrap;}
-  .cd-box{width:120px;padding:24px 0;background:var(--ink);color:var(--paper);text-align:center;border:3px solid var(--ink);box-shadow:6px 6px 0 var(--purple);transform:rotate(var(--tilt,0deg));}
+  .countdown-section .section-tag{justify-content:center;}
+  .countdown-section h2.headline{margin:0 auto 34px;font-size:clamp(1.5rem,4vw,2.2rem);}
+  .countdown{display:flex;justify-content:center;gap:16px;flex-wrap:wrap;}
+  .cd-box{width:95px;padding:18px 0;background:var(--ink);color:var(--paper);text-align:center;border:3px solid var(--ink);box-shadow:5px 5px 0 var(--purple);transform:rotate(var(--tilt,0deg));}
   .cd-box:nth-child(1){--tilt:-3deg;}
   .cd-box:nth-child(2){--tilt:2deg;}
   .cd-box:nth-child(3){--tilt:-1.5deg;}
   .cd-box:nth-child(4){--tilt:2.5deg;}
-  .cd-box .num{font-family:var(--font-display);font-size:2.8rem;color:var(--pink);}
-  .cd-box .lbl{font-family:var(--font-mono);font-size:0.75rem;letter-spacing:0.1em;text-transform:uppercase;margin-top:6px;color:var(--paper-dark);}
-  @media(max-width:600px){
-    .countdown-card{padding:40px 22px;}
-    .cd-box{width:90px;padding:16px 0;}
-    .cd-box .num{font-size:2rem;}
-  }
-
+  .cd-box .num{font-family:var(--font-display);font-size:2.1rem;color:var(--pink);}
+  .cd-box .lbl{font-family:var(--font-mono);font-size:0.68rem;letter-spacing:0.1em;text-transform:uppercase;margin-top:4px;color:var(--paper-dark);}
 
   /* ---------- SECTION shared ---------- */
   section{position:relative;padding:90px 0;}
