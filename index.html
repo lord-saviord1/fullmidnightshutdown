@@ -122,8 +122,10 @@
   /* ---- loading screen ---- */
   #loader{
     position:fixed;inset:0;z-index:2000;
+    height:100dvh; /* falls back to the inset:0 box on browsers that don't support dvh yet */
     background:radial-gradient(ellipse 70% 60% at 50% 30%, var(--purple), var(--purple-deep) 70%);
     display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;
+    padding:20px;text-align:center;
     transition:opacity .5s ease, visibility .5s ease;
   }
   #loader.hide{opacity:0;visibility:hidden;pointer-events:none;}
@@ -132,6 +134,10 @@
   .loader-box .fms-wordmark{font-family:var(--font-display);font-size:2.1rem;color:#fff;letter-spacing:0.02em;text-shadow:2px 2px 0 var(--pink);}
   @keyframes blink-box{0%,49%{opacity:1;}50%,100%{opacity:0.25;}}
   .loader-sub{font-family:var(--font-mono);font-size:0.68rem;color:#d9b8ef;letter-spacing:0.1em;text-transform:uppercase;}
+  @media(max-width:480px){
+    .loader-box{width:140px;height:80px;}
+    .loader-box .fms-wordmark{font-size:1.6rem;}
+  }
 
   .torn{
     width:100%;height:26px;background:var(--paper);
@@ -443,7 +449,27 @@
     section{padding:64px 0;}
     .venue-info{padding:30px 24px;}
     .marquee-stack{height:120px;}
-    .countdown-section{padding:60px 0;}
+  }
+
+  /* ---- mobile: a DIFFERENT technique from desktop, on purpose. The desktop version ties the
+     slide to continuous scroll position, which depends on window.innerHeight — and on phones,
+     that number changes constantly as the browser's address bar shows/hides while scrolling,
+     which is what caused the glitching. Mobile instead uses a discrete swipe gesture (a single
+     touchstart→touchend measurement) to step between two locked, full-screen panels, with a
+     plain CSS transition doing the animation — nothing here depends on live scroll math, so
+     there's nothing for the address bar to destabilize. See the JS "MOBILE SWIPE PAGES" block
+     for the actual gesture handling. ---- */
+  @media(max-width:760px){
+    .transition-stage{height:0;overflow:visible;}
+    .hero{position:fixed;top:0;left:0;width:100%;height:100dvh;z-index:10;}
+    .countdown-section{
+      position:fixed;top:0;left:0;width:100%;height:100dvh;z-index:11;
+      margin-top:0;min-height:auto;padding:0;
+      transform:translateX(100%);
+      transition:transform .5s cubic-bezier(.65,0,.35,1);
+    }
+    .countdown-section.in-view{transform:translateX(0);}
+    body.mobile-swipe-locked{overflow:hidden;position:fixed;width:100%;}
   }
 </style>
 </head>
@@ -867,7 +893,11 @@
   // the tickets section, scrolls completely normally. ----
   const transitionStage = document.getElementById('transitionStage');
   const countdownEl = document.getElementById('countdown-section');
+  const heroEl = document.getElementById('hero');
   function updatePageSlide(){
+    // this continuous scroll-linked version is desktop-only — see the MOBILE SWIPE PAGES
+    // block below for why mobile uses a completely different (gesture-based) technique instead
+    if(window.innerWidth <= 760) return;
     if(!transitionStage || !countdownEl) return;
     const stageRect = transitionStage.getBoundingClientRect();
     const runway = transitionStage.offsetHeight - window.innerHeight;
@@ -878,6 +908,64 @@
     // eases in from fully off-screen right (100vw) to fully covering (0)
     const eased = 1 - Math.pow(1 - progress, 2);
     countdownEl.style.transform = `translateX(${(1 - eased) * 100}vw)`;
+  }
+
+  // ---- MOBILE SWIPE PAGES ----
+  // A discrete, gesture-driven version of the same idea, used only on narrow screens. Page 1
+  // (hero) and page 2 (countdown) are locked full-screen panels. A swipe up or left steps
+  // forward; a swipe down or right on page 2 steps back. After the second forward swipe, the
+  // panels unlock and become normal scrolling content, landing the person exactly at the top
+  // of the About section. This is intentionally NOT tied to scroll position or innerHeight —
+  // it only reacts to a completed swipe gesture — so there's nothing for the mobile browser's
+  // resizing address bar to destabilize.
+  if(window.innerWidth <= 760 && transitionStage && countdownEl && heroEl){
+    let mobilePage = 0; // 0 = hero, 1 = countdown, 2 = unlocked/normal scroll
+    let touchStartX = 0, touchStartY = 0;
+    const SWIPE_THRESHOLD = 55;
+
+    document.body.classList.add('mobile-swipe-locked');
+
+    function goToPage(n){
+      mobilePage = n;
+      if(n === 1){
+        countdownEl.classList.add('in-view');
+      } else if(n === 0){
+        countdownEl.classList.remove('in-view');
+      } else if(n === 2){
+        document.body.classList.remove('mobile-swipe-locked');
+        heroEl.style.position = 'static';
+        countdownEl.style.position = 'static';
+        countdownEl.style.transform = 'none';
+        countdownEl.style.height = 'auto';
+        countdownEl.classList.remove('in-view');
+        transitionStage.style.height = 'auto';
+        // land exactly where these two panels end, so it feels continuous rather than
+        // jumping back to the top of the hero
+        window.scrollTo(0, transitionStage.offsetHeight);
+      }
+    }
+
+    document.addEventListener('touchstart', (e)=>{
+      if(mobilePage >= 2) return;
+      touchStartX = e.touches[0].clientX;
+      touchStartY = e.touches[0].clientY;
+    }, { passive: true });
+
+    document.addEventListener('touchmove', (e)=>{
+      if(mobilePage < 2) e.preventDefault(); // block background scroll while locked
+    }, { passive: false });
+
+    document.addEventListener('touchend', (e)=>{
+      if(mobilePage >= 2) return;
+      const dx = e.changedTouches[0].clientX - touchStartX;
+      const dy = e.changedTouches[0].clientY - touchStartY;
+      const swipedForward = dy < -SWIPE_THRESHOLD || dx < -SWIPE_THRESHOLD;
+      const swipedBack = dy > SWIPE_THRESHOLD || dx > SWIPE_THRESHOLD;
+
+      if(swipedForward && mobilePage === 0) goToPage(1);
+      else if(swipedForward && mobilePage === 1) goToPage(2);
+      else if(swipedBack && mobilePage === 1) goToPage(0);
+    }, { passive: true });
   }
 
   // ---- crisscross marquee, base speed + scroll-reactive speed boost, also drives skew ----
