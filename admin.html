@@ -60,12 +60,16 @@
   const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
   async function checkSession(){
-    const { data: { session } } = await supabase.auth.getSession();
-    if(session){
-      document.getElementById('loginCard').style.display = 'none';
-      document.getElementById('app').style.display = 'block';
-      loadTickets();
-      loadSales();
+    try{
+      const { data: { session } } = await supabase.auth.getSession();
+      if(session){
+        document.getElementById('loginCard').style.display = 'none';
+        document.getElementById('app').style.display = 'block';
+        loadTickets();
+        loadSales();
+      }
+    } catch(e){
+      console.warn('checkSession failed — likely SUPABASE_URL/ANON_KEY not set yet', e);
     }
   }
 
@@ -73,16 +77,28 @@
     const email = document.getElementById('email').value.trim();
     const password = document.getElementById('password').value;
     const statusEl = document.getElementById('loginStatus');
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if(error){ statusEl.textContent = error.message; statusEl.className = 'err'; }
-    else { checkSession(); }
+    statusEl.textContent = 'Logging in...';
+    statusEl.className = '';
+    if(SUPABASE_URL.includes('YOUR-PROJECT')){
+      statusEl.textContent = 'Setup incomplete: SUPABASE_URL / SUPABASE_ANON_KEY are still placeholders in this file.';
+      statusEl.className = 'err';
+      return;
+    }
+    try{
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if(error){ statusEl.textContent = error.message; statusEl.className = 'err'; }
+      else { statusEl.textContent = ''; checkSession(); }
+    } catch(e){
+      statusEl.textContent = 'Could not reach Supabase — check SUPABASE_URL is correct and you have a network connection.';
+      statusEl.className = 'err';
+    }
   }
 
   async function logout(){ await supabase.auth.signOut(); location.reload(); }
 
   // ---- ticket availability ----
   async function loadTickets(){
-    const { data, error } = await supabase.from('tickets').select('id,total,sold');
+    const { data, error } = await supabase.from('tickets').select('id,total,sold,price');
     const container = document.getElementById('ticketList');
     container.innerHTML = '';
     if(error){ container.textContent = 'Error loading tickets: ' + error.message; return; }
@@ -92,6 +108,7 @@
       div.innerHTML = `
         <div class="ticket-name">${row.id}</div>
         <div class="ticket-row">
+          <div class="field"><label>Price (₦)</label><input type="number" id="price-${row.id}" value="${row.price ?? ''}"></div>
           <div class="field"><label>Total</label><input type="number" id="total-${row.id}" value="${row.total}"></div>
           <div class="field"><label>Sold</label><input type="number" id="sold-${row.id}" value="${row.sold}"></div>
         </div>
@@ -103,11 +120,12 @@
   }
 
   async function saveTicket(id){
+    const price = parseInt(document.getElementById('price-' + id).value, 10);
     const total = parseInt(document.getElementById('total-' + id).value, 10);
     const sold = parseInt(document.getElementById('sold-' + id).value, 10);
     const statusEl = document.getElementById('status-' + id);
-    const { error } = await supabase.from('tickets').update({ total, sold }).eq('id', id);
-    statusEl.textContent = error ? 'Failed: ' + error.message : 'Saved.';
+    const { error } = await supabase.from('tickets').update({ price, total, sold }).eq('id', id);
+    statusEl.textContent = error ? 'Failed: ' + error.message : 'Saved — live on the site within ~20 seconds.';
     statusEl.className = error ? 'err' : 'ok';
   }
 
