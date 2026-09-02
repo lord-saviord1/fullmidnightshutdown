@@ -17,14 +17,14 @@
 <meta property="og:title" content="FMS — Full Midnight Shutdown | Freshers Meet Staylite Edition">
 <meta property="og:description" content="LASU's freshers welcome. One night, one floor, freshers meet staylites. Sat 14th Nov, doors 10PM. Limited entry.">
 <meta property="og:url" content="https://fullmidnightshutdown.vercel.app/">
-<meta property="og:image" content="https://fullmidnightshutdown.vercel.app/assets/preview.jpg">
+<meta property="og:image" content="assets/preview.jpg">
 <meta property="og:site_name" content="FMS - Full Midnight Shutdown">
 
 <!-- Twitter Card -->
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="FMS — Full Midnight Shutdown | Freshers Meet Staylite Edition">
 <meta name="twitter:description" content="LASU's freshers welcome. One night, one floor, freshers meet staylites. Sat 14th Nov, doors 10PM.">
-<meta name="twitter:image" content="https://fullmidnightshutdown.vercel.app/assets/preview.jpg">
+<meta name="twitter:image" content="assets/preview.jpg">
 
 <!-- JSON-LD structured data, so Google can surface this as an Event -->
 <script type="application/ld+json">
@@ -46,7 +46,7 @@
       "addressCountry": "NG"
     }
   },
-  "image": ["https://fullmidnightshutdown.vercel.app/assets/preview.jpg"],
+  "image": ["assets/preview.jpg"],
   "organizer": { "@type": "Organization", "name": "Cipher PR" },
   "offers": [
     {
@@ -55,7 +55,7 @@
       "price": "3500",
       "priceCurrency": "NGN",
       "availability": "https://schema.org/InStock",
-      "url": "https://fullmidnightshutdown.vercel.app/"
+      "url": "https://fullmidnightshutdown.vercel.app/#tickets"
     },
     {
       "@type": "Offer",
@@ -63,7 +63,7 @@
       "price": "4000",
       "priceCurrency": "NGN",
       "availability": "https://schema.org/InStock",
-      "url": "https://fullmidnightshutdown.vercel.app/"
+      "url": "https://fullmidnightshutdown.vercel.app/#tickets"
     }
   ]
 }
@@ -184,6 +184,10 @@
      scrolls completely normally — nothing else on the site (including tickets) has any special
      scroll behavior. ---- */
   .transition-stage{position:relative;height:220vh;}
+  /* ---- second pinned pair, same mechanism: About stays put, Experience slides over it ---- */
+  .transition-stage-2{position:relative;height:220vh;}
+  #about{position:sticky;top:0;min-height:100svh;display:flex;flex-direction:column;justify-content:center;}
+  #experience{position:sticky;top:0;min-height:100svh;margin-top:-100svh;will-change:transform;}
   .hero{
     position:sticky;top:0;min-height:100svh;display:flex;flex-direction:column;justify-content:center;padding:130px 0 50px;
     background:radial-gradient(ellipse 55% 45% at 12% 15%, rgba(124,47,176,0.20), transparent),
@@ -243,6 +247,18 @@
   .mini-marquee.reverse .mini-track{animation-direction:reverse;}
   .mini-marquee .mini-track span{font-family:var(--font-display);font-size:0.95rem;text-transform:uppercase;letter-spacing:0.03em;padding:0 22px;color:var(--paper);}
   @keyframes mini-scroll{from{transform:translateX(0);}to{transform:translateX(-50%);}}
+
+  /* variant 1 — tilted, like the big crisscross bands, extended past the edges so the rotation
+     never shows a gap */
+  .mini-marquee.style-tilt{transform:rotate(-1.5deg) scale(1.03);border-top-width:3px;border-bottom-width:3px;}
+
+  /* variant 2 — skewed/dynamic, with a stamp-style star between each phrase */
+  .mini-marquee.style-skew{transform:skewY(-1deg);padding:14px 0;}
+  .mini-marquee.style-skew .mini-track span{position:relative;}
+  .mini-marquee.style-skew .mini-track span::after{content:"★";margin-left:22px;color:var(--paper);opacity:0.6;}
+
+  /* variant 3 — handwritten/casual, contrasting with the poster type used everywhere else */
+  .mini-marquee.style-hand .mini-track span{font-family:var(--font-hand);text-transform:none;font-size:1.15rem;letter-spacing:0;}
 
   /* ---------- COUNTDOWN — "page 2": a distinct, self-contained page rather than a full
      scrolling section, so it reads as its own moment sliding in over the hero ---------- */
@@ -420,14 +436,6 @@
   .cross-in-right{opacity:0;transform:translateX(90px) rotate(4deg);transition:opacity .8s ease .08s, transform .8s cubic-bezier(.16,.8,.2,1) .08s;}
   .cross-in-right.in{opacity:1;transform:translateX(0) rotate(0deg);}
 
-  /* ---- curtain reveal: a different-styled scroll moment used once, on the venue panel — a
-     wipe rather than a slide, so the page doesn't feel like it's repeating the same trick ---- */
-  .curtain-reveal{
-    clip-path:inset(0 50% 0 50%);
-    transition:clip-path 1s cubic-bezier(.65,0,.35,1);
-  }
-  .curtain-reveal.in{clip-path:inset(0 0% 0 0%);}
-
   /* ---- abstract crowd-glimpse: hand-built from CSS shapes (silhouette body + head), not an
      image file — there's nothing that can "fail to load" here, just kept deliberately soft ---- */
   .crowd-glimpse{
@@ -470,6 +478,12 @@
     }
     .countdown-section.in-view{transform:translateX(0);}
     body.mobile-swipe-locked{overflow:hidden;position:fixed;width:100%;}
+
+    /* second pair (About/Experience) is desktop-only for now — see chat for why. On mobile
+       it just falls back to plain, safe, normal-flow stacking like every other section. */
+    .transition-stage-2{height:auto;}
+    #about{position:relative;top:auto;}
+    #experience{position:relative;top:auto;margin-top:0;min-height:auto;transform:none !important;}
   }
 </style>
 </head>
@@ -574,6 +588,7 @@
 
 <div class="torn flip" id="tornBottom"></div>
 
+<div class="transition-stage-2" id="transitionStage2">
 <section id="about">
   <div class="crowd-glimpse" style="right:-40px;bottom:-30px;width:340px;height:180px;">
     <div class="figure" style="left:10px;width:70px;height:130px;"></div>
@@ -599,13 +614,6 @@
   </div>
 </section>
 
-<div class="mini-marquee" style="background:var(--purple);">
-  <div class="mini-track">
-    <span>FMS · LASU · FULL MIDNIGHT SHUTDOWN</span><span>FRESHERS MEET STAYLITE</span><span>14TH NOV · 10PM</span>
-    <span>FMS · LASU · FULL MIDNIGHT SHUTDOWN</span><span>FRESHERS MEET STAYLITE</span><span>14TH NOV · 10PM</span>
-  </div>
-</div>
-
 <section id="experience" style="background:var(--paper-2);">
   <div class="wrap">
     <div class="section-tag"><span class="idx">02</span> What To Expect</div>
@@ -620,6 +628,14 @@
     </div>
   </div>
 </section>
+</div>
+
+<div class="mini-marquee style-tilt" style="background:var(--purple);">
+  <div class="mini-track">
+    <span>FMS · LASU · FULL MIDNIGHT SHUTDOWN</span><span>FRESHERS MEET STAYLITE</span><span>14TH NOV · 10PM</span>
+    <span>FMS · LASU · FULL MIDNIGHT SHUTDOWN</span><span>FRESHERS MEET STAYLITE</span><span>14TH NOV · 10PM</span>
+  </div>
+</div>
 
 <div class="torn"></div>
 
@@ -693,7 +709,7 @@
   </div>
 </section>
 
-<div class="mini-marquee reverse" style="background:var(--red);">
+<div class="mini-marquee reverse style-skew" style="background:var(--red);">
   <div class="mini-track">
     <span>LIMITED ENTRY</span><span>SECURE YOUR TICKET</span><span>FMS · FULL MIDNIGHT SHUTDOWN</span>
     <span>LIMITED ENTRY</span><span>SECURE YOUR TICKET</span><span>FMS · FULL MIDNIGHT SHUTDOWN</span>
@@ -710,7 +726,7 @@
   <div class="wrap">
     <div class="section-tag"><span class="idx">04</span> Find Your Way</div>
     <h2 class="headline reveal">Location <em class="purple">to be determined.</em></h2>
-    <div class="venue-panel curtain-reveal">
+    <div class="venue-panel reveal">
       <div class="venue-info">
         <p class="lede" style="margin-bottom:0;">Venue is under wraps for now — follow the socials or reach the contacts below and we'll get you the exact location before the 14th.</p>
         <dl>
@@ -754,7 +770,7 @@
   </div>
 </section>
 
-<div class="mini-marquee" style="background:var(--pink);">
+<div class="mini-marquee style-hand" style="background:var(--pink);">
   <div class="mini-track">
     <span style="color:var(--ink);">FMS · FULL MIDNIGHT SHUTDOWN</span><span style="color:var(--ink);">SEE YOU THERE</span><span style="color:var(--ink);">14TH NOV · 10PM</span>
     <span style="color:var(--ink);">FMS · FULL MIDNIGHT SHUTDOWN</span><span style="color:var(--ink);">SEE YOU THERE</span><span style="color:var(--ink);">14TH NOV · 10PM</span>
@@ -871,7 +887,7 @@
   setInterval(updateCountdown, 1000);
 
   // ---- scroll reveal ----
-  const revealEls = document.querySelectorAll('.reveal, .reveal-left, .reveal-right, .reveal-pop, .cross-in-left, .cross-in-right, .curtain-reveal');
+  const revealEls = document.querySelectorAll('.reveal, .reveal-left, .reveal-right, .reveal-pop, .cross-in-left, .cross-in-right');
   const io = new IntersectionObserver((entries)=>{
     entries.forEach(e=>{ if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target); } });
   }, {threshold:0.15});
@@ -884,6 +900,7 @@
 
   function updateScrollFx(){
     updatePageSlide();
+    updatePageSlide2();
   }
 
   // ---- page slide: a classic "next slide covers the current one" transition, like clicking
@@ -908,6 +925,23 @@
     // eases in from fully off-screen right (100vw) to fully covering (0)
     const eased = 1 - Math.pow(1 - progress, 2);
     countdownEl.style.transform = `translateX(${(1 - eased) * 100}vw)`;
+  }
+
+  // ---- second pair, same mechanism: About stays put, Experience slides over it. Desktop only —
+  // see chat for why this one doesn't have a mobile version yet. ----
+  const transitionStage2 = document.getElementById('transitionStage2');
+  const experienceEl = document.getElementById('experience');
+  function updatePageSlide2(){
+    if(window.innerWidth <= 760) return;
+    if(!transitionStage2 || !experienceEl) return;
+    const stageRect = transitionStage2.getBoundingClientRect();
+    const runway = transitionStage2.offsetHeight - window.innerHeight;
+    if(runway <= 0) return;
+    const scrolledIntoStage = -stageRect.top;
+    let progress = scrolledIntoStage / runway;
+    progress = Math.max(0, Math.min(1, progress));
+    const eased = 1 - Math.pow(1 - progress, 2);
+    experienceEl.style.transform = `translateX(${(1 - eased) * 100}vw)`;
   }
 
   // ---- MOBILE SWIPE PAGES ----
@@ -1105,7 +1139,7 @@
     const phone = document.getElementById('buyerPhone').value.trim();
     if(!name || !email){ alert('Please fill in your name and email.'); return; }
     const handler = PaystackPop.setup({
-      key: 'pk_live_0bc05261133e1e8c0f3f1c6398bafac1a59aa472',
+      key: 'pk_test_dc8a6d543a3c79f5b45e4570b11e6496f5a4d32b',
       email: email,
       amount: currentTicket.price * 100,
       currency: 'NGN',
