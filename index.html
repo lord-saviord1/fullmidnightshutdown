@@ -1036,8 +1036,8 @@
   //      -- function and, via login, the admin page) can write. This is what stops anyone
   //      -- from editing ticket counts from the browser console.
   // 3. In Project Settings → API, copy your Project URL and anon public key below.
-  const SUPABASE_URL = 'https://YOUR-PROJECT.supabase.co';
-  const SUPABASE_ANON_KEY = 'YOUR-ANON-PUBLIC-KEY';
+  const SUPABASE_URL = 'https://yfrljjyfopiddltlddmw.supabase.co';
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlmcmxqanlmb3BpZGRsdGxkZG13Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgyOTg2OTgsImV4cCI6MjEwMzg3NDY5OH0.LtyLRsP7TH6EBGhA6A9yIUssxqHjux1T-8hRo_2f3Vg';
 
   // fallback numbers, used only if Supabase isn't configured yet or the request fails —
   // keeps the page working during setup instead of breaking
@@ -1105,7 +1105,7 @@
     const phone = document.getElementById('buyerPhone').value.trim();
     if(!name || !email){ alert('Please fill in your name and email.'); return; }
     const handler = PaystackPop.setup({
-      key: 'pk_test_replace_with_your_public_key',
+      key: 'pk_live_0bc05261133e1e8c0f3f1c6398bafac1a59aa472',
       email: email,
       amount: currentTicket.price * 100,
       currency: 'NGN',
