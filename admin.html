@@ -48,11 +48,44 @@
 <p class="sub">Edit ticket availability and pricing, and look up individual sales for gate check-in.</p>
 
 <script>
+  // ---- global safety net: if ANYTHING in this page throws an uncaught error, show it
+  // directly on the page instead of letting it vanish silently into the browser console.
+  // This is exactly the class of bug that broke this page before — a failed script load
+  // can kill everything after it with zero visible sign anything went wrong. Never again. ----
+  window.addEventListener('error', function(e){
+    const el = document.getElementById('loginStatus');
+    if(el){ el.textContent = 'Script error: ' + e.message; el.className = 'err'; }
+  });
+
   const SUPABASE_URL = 'https://yfrljjyfopiddltlddmw.supabase.co';
   const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlmcmxqanlmb3BpZGRsdGxkZG13Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgyOTg2OTgsImV4cCI6MjEwMzg3NDY5OH0.LtyLRsP7TH6EBGhA6A9yIUssxqHjux1T-8hRo_2f3Vg';
-  const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  // guarded — if the Supabase CDN script failed to load, window.supabase would be undefined,
+  // and calling .createClient() on it would throw and silently kill every function below it
+  // (login() would never even get defined). This is very likely what was actually happening.
+  let supabase = null;
+  let supabaseLoadError = null;
+  try{
+    if(typeof window.supabase === 'undefined'){
+      throw new Error('The Supabase library did not load (check your internet connection, or the CDN may be blocked).');
+    }
+    supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  } catch(e){
+    supabaseLoadError = e.message;
+  }
+
+  window.addEventListener('DOMContentLoaded', function(){
+    if(supabaseLoadError){
+      const el = document.getElementById('loginStatus');
+      el.textContent = supabaseLoadError;
+      el.className = 'err';
+      return;
+    }
+    checkSession();
+  });
 
   async function checkSession(){
+    if(!supabase) return;
     try{
       const { data: { session } } = await supabase.auth.getSession();
       if(session){
@@ -67,9 +100,14 @@
   }
 
   async function login(){
+    const statusEl = document.getElementById('loginStatus');
+    if(!supabase){
+      statusEl.textContent = supabaseLoadError || 'Supabase failed to initialize — refresh the page.';
+      statusEl.className = 'err';
+      return;
+    }
     const email = document.getElementById('email').value.trim();
     const password = document.getElementById('password').value;
-    const statusEl = document.getElementById('loginStatus');
     statusEl.textContent = 'Logging in...';
     statusEl.className = '';
     try{
@@ -178,8 +216,6 @@
   }
 
   function onSearch(){ renderSales(currentFilter()); }
-
-  window.addEventListener('DOMContentLoaded', checkSession);
 </script>
 
 <div class="card" id="loginCard">
