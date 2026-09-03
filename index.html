@@ -1145,6 +1145,29 @@
   refreshTicketConfig();
   setInterval(refreshTicketConfig, 20000); // poll every 20s so counts/prices update live from admin
 
+  // ---- SITE SETTINGS — Paystack key (test/live) is now controlled from the admin page instead
+  // of being hardcoded here, so switching to live payments never requires editing/redeploying code.
+  const FALLBACK_PAYSTACK_KEY = 'pk_test_dc8a6d543a3c79f5b45e4570b11e6496f5a4d32b';
+  let ACTIVE_PAYSTACK_KEY = FALLBACK_PAYSTACK_KEY;
+
+  async function fetchSiteSettings(){
+    if(SUPABASE_URL.includes('YOUR-PROJECT')) return;
+    try{
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/site_settings?select=*&id=eq.main`, {
+        headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` }
+      });
+      const rows = await res.json();
+      const row = rows[0];
+      if(row){
+        ACTIVE_PAYSTACK_KEY = (row.use_live ? row.paystack_live_key : row.paystack_test_key) || FALLBACK_PAYSTACK_KEY;
+      }
+    } catch(e){
+      console.warn('Could not fetch site settings, using fallback Paystack key', e);
+    }
+  }
+  fetchSiteSettings();
+  setInterval(fetchSiteSettings, 20000); // so flipping the admin toggle applies without a redeploy
+
   // ---- checkout modal ----
   let currentTicket = {name:'', price:0};
   function openCheckout(name, price){
@@ -1168,7 +1191,7 @@
     const phone = document.getElementById('buyerPhone').value.trim();
     if(!name || !email){ alert('Please fill in your name and email.'); return; }
     const handler = PaystackPop.setup({
-      key: 'pk_test_dc8a6d543a3c79f5b45e4570b11e6496f5a4d32b',
+      key: ACTIVE_PAYSTACK_KEY,
       email: email,
       amount: currentTicket.price * 100,
       currency: 'NGN',
