@@ -6,7 +6,6 @@
 <meta name="robots" content="noindex, nofollow">
 <title>FMS Admin — Ticket Manager</title>
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Courier+Prime:wght@400;700&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   :root{
     --paper:#efe7d3; --ink:#1a1512; --ink-soft:#463b30; --red:#c0271a; --purple:#7c2fb0; --pink:#ff3fa8; --card:#f5efdf;
@@ -47,102 +46,125 @@
 <h1>FMS Ticket Manager</h1>
 <p class="sub">Edit ticket availability and pricing, and look up individual sales for gate check-in.</p>
 
+<div class="card" id="loginCard">
+  <label>Email</label>
+  <input type="email" id="email" placeholder="you@email.com">
+  <label>Password</label>
+  <input type="password" id="password">
+  <button onclick="login()">Log In</button>
+  <div id="loginStatus"></div>
+</div>
+
+<div id="app">
+  <h2>Ticket Availability</h2>
+  <div id="ticketList"></div>
+
+  <h2>Gate Check-In — Search by code, name, or email</h2>
+  <input type="text" id="searchBox" placeholder="e.g. FMS-7K2P9Q or Adaeze" oninput="onSearch()">
+  <div id="salesTableWrap"></div>
+
+  <button id="logout" onclick="logout()">Log out</button>
+</div>
+
 <script>
-  // ---- global safety net: if ANYTHING in this page throws an uncaught error, show it
-  // directly on the page instead of letting it vanish silently into the browser console.
-  // This is exactly the class of bug that broke this page before — a failed script load
-  // can kill everything after it with zero visible sign anything went wrong. Never again. ----
+  // ---- global safety net: any uncaught error anywhere shows up right here on the page,
+  // instead of vanishing silently into the browser console where you'd never see it. ----
   window.addEventListener('error', function(e){
     const el = document.getElementById('loginStatus');
     if(el){ el.textContent = 'Script error: ' + e.message; el.className = 'err'; }
   });
 
+  // ---- No external Supabase library here on purpose. This page previously depended on the
+  // supabase-js SDK loaded from a CDN, and that dependency was the recurring point of silent
+  // failure. Everything below talks to Supabase's REST and Auth endpoints directly with plain
+  // fetch() — the same technique index.html already uses — so there's nothing that can fail
+  // to load and take the rest of the page down with it. ----
   const SUPABASE_URL = 'https://yfrljjyfopiddltlddmw.supabase.co';
   const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlmcmxqanlmb3BpZGRsdGxkZG13Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgyOTg2OTgsImV4cCI6MjEwMzg3NDY5OH0.LtyLRsP7TH6EBGhA6A9yIUssxqHjux1T-8hRo_2f3Vg';
 
-  // guarded — if the Supabase CDN script failed to load, window.supabase would be undefined,
-  // and calling .createClient() on it would throw and silently kill every function below it
-  // (login() would never even get defined). This is very likely what was actually happening.
-  let supabase = null;
-  let supabaseLoadError = null;
-  try{
-    if(typeof window.supabase === 'undefined'){
-      throw new Error('The Supabase library did not load (check your internet connection, or the CDN may be blocked).');
-    }
-    supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-  } catch(e){
-    supabaseLoadError = e.message;
-  }
+  let accessToken = sessionStorage.getItem('fms_admin_token') || null;
 
-  window.addEventListener('DOMContentLoaded', function(){
-    if(supabaseLoadError){
-      const el = document.getElementById('loginStatus');
-      el.textContent = supabaseLoadError;
-      el.className = 'err';
-      return;
-    }
-    checkSession();
-  });
-
-  async function checkSession(){
-    if(!supabase) return;
-    try{
-      const { data: { session } } = await supabase.auth.getSession();
-      if(session){
-        document.getElementById('loginCard').style.display = 'none';
-        document.getElementById('app').style.display = 'block';
-        loadTickets();
-        loadSales();
-      }
-    } catch(e){
-      console.warn('checkSession failed', e);
-    }
+  function authHeaders(){
+    return {
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${accessToken || SUPABASE_ANON_KEY}`,
+      'Content-Type': 'application/json'
+    };
   }
 
   async function login(){
-    const statusEl = document.getElementById('loginStatus');
-    if(!supabase){
-      statusEl.textContent = supabaseLoadError || 'Supabase failed to initialize — refresh the page.';
-      statusEl.className = 'err';
-      return;
-    }
     const email = document.getElementById('email').value.trim();
     const password = document.getElementById('password').value;
+    const statusEl = document.getElementById('loginStatus');
     statusEl.textContent = 'Logging in...';
     statusEl.className = '';
+
     try{
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if(error){ statusEl.textContent = error.message; statusEl.className = 'err'; }
-      else { statusEl.textContent = ''; checkSession(); }
+      const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
+        method: 'POST',
+        headers: { apikey: SUPABASE_ANON_KEY, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      });
+      const data = await res.json();
+
+      if(!res.ok){
+        statusEl.textContent = data.error_description || data.msg || `Login failed (HTTP ${res.status})`;
+        statusEl.className = 'err';
+        return;
+      }
+
+      accessToken = data.access_token;
+      sessionStorage.setItem('fms_admin_token', accessToken);
+      statusEl.textContent = '';
+      showApp();
     } catch(e){
-      statusEl.textContent = 'Could not reach Supabase: ' + e.message;
+      statusEl.textContent = 'Network error reaching Supabase: ' + e.message;
       statusEl.className = 'err';
     }
   }
 
-  async function logout(){ await supabase.auth.signOut(); location.reload(); }
+  function logout(){
+    accessToken = null;
+    sessionStorage.removeItem('fms_admin_token');
+    location.reload();
+  }
+
+  function showApp(){
+    document.getElementById('loginCard').style.display = 'none';
+    document.getElementById('app').style.display = 'block';
+    loadTickets();
+    loadSales();
+  }
+
+  // if a token from a previous visit is still around this session, skip straight to the app
+  if(accessToken){ showApp(); }
 
   // ---- ticket availability ----
   async function loadTickets(){
-    const { data, error } = await supabase.from('tickets').select('id,total,sold,price');
     const container = document.getElementById('ticketList');
-    container.innerHTML = '';
-    if(error){ container.textContent = 'Error loading tickets: ' + error.message; return; }
-    data.forEach(row=>{
-      const div = document.createElement('div');
-      div.className = 'card';
-      div.innerHTML = `
-        <div class="ticket-name">${row.id}</div>
-        <div class="ticket-row">
-          <div class="field"><label>Price (₦)</label><input type="number" id="price-${row.id}" value="${row.price ?? ''}"></div>
-          <div class="field"><label>Total</label><input type="number" id="total-${row.id}" value="${row.total}"></div>
-          <div class="field"><label>Sold</label><input type="number" id="sold-${row.id}" value="${row.sold}"></div>
-        </div>
-        <button onclick="saveTicket('${row.id}')">Save</button>
-        <div id="status-${row.id}"></div>
-      `;
-      container.appendChild(div);
-    });
+    try{
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/tickets?select=id,total,sold,price`, { headers: authHeaders() });
+      if(!res.ok){ container.textContent = `Error loading tickets (HTTP ${res.status})`; return; }
+      const data = await res.json();
+      container.innerHTML = '';
+      data.forEach(row=>{
+        const div = document.createElement('div');
+        div.className = 'card';
+        div.innerHTML = `
+          <div class="ticket-name">${row.id}</div>
+          <div class="ticket-row">
+            <div class="field"><label>Price (₦)</label><input type="number" id="price-${row.id}" value="${row.price ?? ''}"></div>
+            <div class="field"><label>Total</label><input type="number" id="total-${row.id}" value="${row.total}"></div>
+            <div class="field"><label>Sold</label><input type="number" id="sold-${row.id}" value="${row.sold}"></div>
+          </div>
+          <button onclick="saveTicket('${row.id}')">Save</button>
+          <div id="status-${row.id}"></div>
+        `;
+        container.appendChild(div);
+      });
+    } catch(e){
+      container.textContent = 'Network error: ' + e.message;
+    }
   }
 
   async function saveTicket(id){
@@ -150,22 +172,33 @@
     const total = parseInt(document.getElementById('total-' + id).value, 10);
     const sold = parseInt(document.getElementById('sold-' + id).value, 10);
     const statusEl = document.getElementById('status-' + id);
-    const { error } = await supabase.from('tickets').update({ price, total, sold }).eq('id', id);
-    statusEl.textContent = error ? 'Failed: ' + error.message : 'Saved — live on the site within ~20 seconds.';
-    statusEl.className = error ? 'err' : 'ok';
+    try{
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/tickets?id=eq.${id}`, {
+        method: 'PATCH',
+        headers: { ...authHeaders(), Prefer: 'return=minimal' },
+        body: JSON.stringify({ price, total, sold })
+      });
+      if(res.ok){ statusEl.textContent = 'Saved — live on the site within ~20 seconds.'; statusEl.className = 'ok'; }
+      else { statusEl.textContent = `Failed (HTTP ${res.status})`; statusEl.className = 'err'; }
+    } catch(e){
+      statusEl.textContent = 'Network error: ' + e.message;
+      statusEl.className = 'err';
+    }
   }
 
   // ---- individual sales / gate check-in ----
   let allSales = [];
 
   async function loadSales(){
-    const { data, error } = await supabase.from('ticket_sales').select('*').order('created_at', { ascending: false });
-    if(error){
-      document.getElementById('salesTableWrap').innerHTML = `<p class="empty">Error loading sales: ${error.message}</p>`;
-      return;
+    const wrap = document.getElementById('salesTableWrap');
+    try{
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/ticket_sales?select=*&order=created_at.desc`, { headers: authHeaders() });
+      if(!res.ok){ wrap.innerHTML = `<p class="empty">Error loading sales (HTTP ${res.status})</p>`; return; }
+      allSales = await res.json();
+      renderSales(allSales);
+    } catch(e){
+      wrap.innerHTML = `<p class="empty">Network error: ${e.message}</p>`;
     }
-    allSales = data || [];
-    renderSales(allSales);
   }
 
   function renderSales(rows){
@@ -197,12 +230,18 @@
   }
 
   async function toggleCheckin(id, newState){
-    const { error } = await supabase.from('ticket_sales').update({ checked_in: newState }).eq('id', id);
-    if(!error){
-      const row = allSales.find(r => r.id === id);
-      if(row) row.checked_in = newState;
-      renderSales(currentFilter());
-    }
+    try{
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/ticket_sales?id=eq.${id}`, {
+        method: 'PATCH',
+        headers: { ...authHeaders(), Prefer: 'return=minimal' },
+        body: JSON.stringify({ checked_in: newState })
+      });
+      if(res.ok){
+        const row = allSales.find(r => r.id === id);
+        if(row) row.checked_in = newState;
+        renderSales(currentFilter());
+      }
+    } catch(e){ console.warn('toggleCheckin failed', e); }
   }
 
   function currentFilter(){
@@ -217,26 +256,6 @@
 
   function onSearch(){ renderSales(currentFilter()); }
 </script>
-
-<div class="card" id="loginCard">
-  <label>Email</label>
-  <input type="email" id="email" placeholder="you@email.com">
-  <label>Password</label>
-  <input type="password" id="password">
-  <button onclick="login()">Log In</button>
-  <div id="loginStatus"></div>
-</div>
-
-<div id="app">
-  <h2>Ticket Availability</h2>
-  <div id="ticketList"></div>
-
-  <h2>Gate Check-In — Search by code, name, or email</h2>
-  <input type="text" id="searchBox" placeholder="e.g. FMS-7K2P9Q or Adaeze" oninput="onSearch()">
-  <div id="salesTableWrap"></div>
-
-  <button id="logout" onclick="logout()">Log out</button>
-</div>
 
 </body>
 </html>
