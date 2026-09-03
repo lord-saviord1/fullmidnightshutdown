@@ -46,7 +46,7 @@
       "addressCountry": "NG"
     }
   },
-  "image": ["assets/preview.jpg"],
+  "image": ["https://fullmidnightshutdown.vercel.app/assets/preview.jpg"],
   "organizer": { "@type": "Organization", "name": "Cipher PR" },
   "offers": [
     {
@@ -469,10 +469,10 @@
      for the actual gesture handling. ---- */
   @media(max-width:760px){
     .transition-stage{height:0;overflow:visible;}
-    .hero{position:fixed;top:0;left:0;width:100%;height:100dvh;z-index:10;}
+    .hero{position:fixed;top:0;left:0;width:100%;height:100dvh;z-index:10;padding-bottom:76px;box-sizing:border-box;} /* clears the fixed sticky-bar at the bottom, which a fixed hero otherwise ignores entirely */
     .countdown-section{
       position:fixed;top:0;left:0;width:100%;height:100dvh;z-index:11;
-      margin-top:0;min-height:auto;padding:0;
+      margin-top:0;min-height:auto;padding:0 0 76px 0;box-sizing:border-box;
       transform:translateX(100%);
       transition:transform .5s cubic-bezier(.65,0,.35,1);
     }
@@ -652,7 +652,7 @@
         <div class="ticket-top">
           <div class="ticket-name">Freshers Squad Rate</div>
           <div class="ticket-note">Only for the first 30 freshers — must come with 2 more freshers (group of 3+) to unlock this price.</div>
-          <div class="ticket-price">₦3,500 <span class="per">/ person</span></div>
+          <div class="ticket-price" id="price-freshers">₦3,500 <span class="per">/ person</span></div>
           <div class="ticket-counter">
             <div class="count-label"><span id="claimedCount">0</span> of <span id="claimedTotal">30</span> claimed<span id="claimedTag">Filling up</span></div>
             <div class="bar"><div class="bar-fill" id="claimedBar"></div></div>
@@ -666,7 +666,7 @@
             <li><i data-lucide="check-circle" class="icon"></i> Photo activation included</li>
             <li><i data-lucide="check-circle" class="icon"></i> Freshers priority line</li>
           </ul>
-          <div class="ticket-buy" id="buy-freshers" onclick="openCheckout('Freshers Squad Rate', 3500)">Buy Ticket <i data-lucide="arrow-right" class="icon"></i></div>
+          <div class="ticket-buy" id="buy-freshers" onclick="openCheckoutFor('freshers', 'Freshers Squad Rate')">Buy Ticket <i data-lucide="arrow-right" class="icon"></i></div>
         </div>
       </div>
 
@@ -675,7 +675,7 @@
         <div class="ticket-top">
           <div class="ticket-name">Standard</div>
           <div class="ticket-note">Flat rate — open to every fresher and staylite, no conditions.</div>
-          <div class="ticket-price">₦4,000 <span class="per">/ person</span></div>
+          <div class="ticket-price" id="price-standard">₦4,000 <span class="per">/ person</span></div>
         </div>
         <div class="perforation"></div>
         <div class="ticket-bottom">
@@ -685,7 +685,7 @@
             <li><i data-lucide="check-circle" class="icon"></i> Photo activation included</li>
             <li><i data-lucide="check-circle" class="icon"></i> Full access, all night</li>
           </ul>
-          <div class="ticket-buy" id="buy-standard" onclick="openCheckout('Standard', 4000)">Buy Ticket <i data-lucide="arrow-right" class="icon"></i></div>
+          <div class="ticket-buy" id="buy-standard" onclick="openCheckoutFor('standard', 'Standard')">Buy Ticket <i data-lucide="arrow-right" class="icon"></i></div>
         </div>
       </div>
     </div>
@@ -955,6 +955,7 @@
   if(window.innerWidth <= 760 && transitionStage && countdownEl && heroEl){
     let mobilePage = 0; // 0 = hero, 1 = countdown, 2 = unlocked/normal scroll
     let touchStartX = 0, touchStartY = 0;
+    let touchIsOnControl = false; // true if the touch started on a button/link — never treat that as a swipe
     const SWIPE_THRESHOLD = 55;
 
     document.body.classList.add('mobile-swipe-locked');
@@ -981,16 +982,21 @@
 
     document.addEventListener('touchstart', (e)=>{
       if(mobilePage >= 2) return;
+      // if the touch started on a real control (button, link, the hamburger menu), let it act
+      // like a normal tap — don't intercept it as a swipe attempt, and don't block its click
+      touchIsOnControl = !!e.target.closest('a, button, [onclick]');
       touchStartX = e.touches[0].clientX;
       touchStartY = e.touches[0].clientY;
     }, { passive: true });
 
     document.addEventListener('touchmove', (e)=>{
-      if(mobilePage < 2) e.preventDefault(); // block background scroll while locked
+      // only block background scroll while locked, and never for touches that started on a
+      // control — this was the bug: it was silently swallowing taps on real buttons/links
+      if(mobilePage < 2 && !touchIsOnControl) e.preventDefault();
     }, { passive: false });
 
     document.addEventListener('touchend', (e)=>{
-      if(mobilePage >= 2) return;
+      if(mobilePage >= 2 || touchIsOnControl) return; // let the tap's own click fire normally
       const dx = e.changedTouches[0].clientX - touchStartX;
       const dy = e.changedTouches[0].clientY - touchStartY;
       const swipedForward = dy < -SWIPE_THRESHOLD || dx < -SWIPE_THRESHOLD;
@@ -1000,6 +1006,15 @@
       else if(swipedForward && mobilePage === 1) goToPage(2);
       else if(swipedBack && mobilePage === 1) goToPage(0);
     }, { passive: true });
+
+    // if someone taps a link/button while still locked (e.g. "Get Your Ticket" on the hero,
+    // or the hamburger menu), unlock immediately and let the tap do its normal job — rather
+    // than leaving them stuck wondering why nothing responds
+    document.addEventListener('click', (e)=>{
+      if(mobilePage < 2 && e.target.closest('a, button, [onclick]')){
+        goToPage(2);
+      }
+    }, true);
   }
 
   // ---- crisscross marquee, base speed + scroll-reactive speed boost, also drives skew ----
@@ -1076,8 +1091,8 @@
   // fallback numbers, used only if Supabase isn't configured yet or the request fails —
   // keeps the page working during setup instead of breaking
   const FALLBACK_CONFIG = {
-    freshers: { total: 30, sold: 21 },
-    standard: { total: null, sold: 0 }
+    freshers: { total: 30, sold: 21, price: 3500 },
+    standard: { total: null, sold: 0, price: 4000 }
   };
 
   let TICKET_CONFIG = FALLBACK_CONFIG;
@@ -1085,12 +1100,15 @@
   async function fetchTicketConfig(){
     if(SUPABASE_URL.includes('YOUR-PROJECT')) return FALLBACK_CONFIG; // not configured yet
     try{
-      const res = await fetch(`${SUPABASE_URL}/rest/v1/tickets?select=id,total,sold`, {
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/tickets?select=id,total,sold,price`, {
         headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` }
       });
       const rows = await res.json();
       const cfg = {};
-      rows.forEach(r => { cfg[r.id] = { total: r.total, sold: r.sold }; });
+      rows.forEach(r => { cfg[r.id] = { total: r.total, sold: r.sold, price: r.price }; });
+      // if the price column doesn't exist yet (SQL migration not run), rows won't have `.price`
+      // — fall back to the hardcoded defaults for price specifically rather than showing ₦undefined
+      Object.keys(cfg).forEach(k => { if(typeof cfg[k].price !== 'number') cfg[k].price = FALLBACK_CONFIG[k]?.price; });
       return cfg;
     } catch(e){
       console.warn('Supabase fetch failed, using fallback ticket numbers', e);
@@ -1109,9 +1127,14 @@
     Object.keys(TICKET_CONFIG).forEach(key=>{
       const c = TICKET_CONFIG[key];
       const card = document.getElementById('ticket-' + key);
-      if(!card) return;
-      const isSoldOut = c.total !== null && c.sold >= c.total;
-      card.classList.toggle('sold-out', isSoldOut);
+      if(card){
+        const isSoldOut = c.total !== null && c.sold >= c.total;
+        card.classList.toggle('sold-out', isSoldOut);
+      }
+      const priceEl = document.getElementById('price-' + key);
+      if(priceEl && typeof c.price === 'number'){
+        priceEl.innerHTML = '₦' + c.price.toLocaleString() + ' <span class="per">/ person</span>';
+      }
     });
   }
 
@@ -1120,7 +1143,7 @@
     applyTicketConfig();
   }
   refreshTicketConfig();
-  setInterval(refreshTicketConfig, 20000); // poll every 20s so counts update live as sales come in
+  setInterval(refreshTicketConfig, 20000); // poll every 20s so counts/prices update live from admin
 
   // ---- checkout modal ----
   let currentTicket = {name:'', price:0};
@@ -1129,6 +1152,12 @@
     document.getElementById('modalTicketName').textContent = name;
     document.getElementById('modalTicketPrice').textContent = '₦' + price.toLocaleString();
     document.getElementById('modalOverlay').classList.add('open');
+  }
+  // looks up the CURRENT price at the moment of clicking "Buy Ticket" — never a price baked
+  // into the page at load time, so an admin price change always applies immediately
+  function openCheckoutFor(ticketKey, displayName){
+    const cfg = TICKET_CONFIG[ticketKey] || FALLBACK_CONFIG[ticketKey];
+    openCheckout(displayName, cfg.price);
   }
   function closeCheckout(){ document.getElementById('modalOverlay').classList.remove('open'); }
   document.getElementById('modalOverlay').addEventListener('click', (e)=>{ if(e.target.id === 'modalOverlay') closeCheckout(); });
