@@ -56,6 +56,29 @@
 </div>
 
 <div id="app">
+  <h2>Countdown</h2>
+  <div class="card" id="countdownCard">
+    <label>Sales start date</label>
+    <input type="date" id="salesStartDate">
+    <button onclick="saveCountdown()">Save</button>
+    <div id="countdownStatus"></div>
+    <p id="countdownDisplay" style="margin-top:16px;font-size:1rem;font-weight:700;"></p>
+  </div>
+
+  <h2>Paystack Mode</h2>
+  <div class="card" id="paystackCard">
+    <label>Test public key</label>
+    <input type="text" id="paystackTestKey" placeholder="pk_test_...">
+    <label>Live public key</label>
+    <input type="text" id="paystackLiveKey" placeholder="pk_live_...">
+    <label style="display:flex;align-items:center;gap:8px;margin-bottom:14px;text-transform:none;letter-spacing:0;">
+      <input type="checkbox" id="useLiveToggle" style="width:auto;margin:0;">
+      Use the LIVE key (real payments will be charged once this is checked)
+    </label>
+    <button onclick="savePaystackSettings()">Save</button>
+    <div id="paystackStatus"></div>
+  </div>
+
   <h2>Ticket Availability</h2>
   <div id="ticketList"></div>
 
@@ -134,10 +157,126 @@
     document.getElementById('app').style.display = 'block';
     loadTickets();
     loadSales();
+    loadSiteSettings();
   }
 
   // if a token from a previous visit is still around this session, skip straight to the app
   if(accessToken){ showApp(); }
+
+  // ---- SITE SETTINGS: Paystack test/live key toggle + ticket-sales-start countdown ----
+  //
+  // SETUP (one-time, in your Supabase SQL editor, in addition to the tables from before):
+  //   create table site_settings (
+  //     id text primary key,
+  //     paystack_test_key text,
+  //     paystack_live_key text,
+  //     use_live boolean not null default false,
+  //     sales_start_date date
+  //   );
+  //   insert into site_settings (id, paystack_test_key, use_live)
+  //     values ('main', 'pk_test_dc8a6d543a3c79f5b45e4570b11e6496f5a4d32b', false);
+  //   alter table site_settings enable row level security;
+  //   create policy "public read settings" on site_settings for select using (true);
+  //   create policy "authenticated update settings" on site_settings for update using (auth.role() = 'authenticated');
+
+  let countdownTimer = null;
+
+  async function loadSiteSettings(){
+    try{
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/site_settings?select=*&id=eq.main`, { headers: authHeaders() });
+      if(!res.ok){
+        document.getElementById('paystackStatus').textContent = `Couldn't load settings (HTTP ${res.status}) — has the site_settings table been created? See the comment above this in the code.`;
+        document.getElementById('paystackStatus').className = 'err';
+        return;
+      }
+      const rows = await res.json();
+      const row = rows[0];
+      if(!row){
+        document.getElementById('paystackStatus').textContent = 'No settings row found yet — run the setup SQL (see comment in the code) to create one.';
+        document.getElementById('paystackStatus').className = 'err';
+        return;
+      }
+      document.getElementById('paystackTestKey').value = row.paystack_test_key || '';
+      document.getElementById('paystackLiveKey').value = row.paystack_live_key || '';
+      document.getElementById('useLiveToggle').checked = !!row.use_live;
+      document.getElementById('salesStartDate').value = row.sales_start_date || '';
+      startCountdownDisplay(row.sales_start_date);
+    } catch(e){
+      document.getElementById('paystackStatus').textContent = 'Network error: ' + e.message;
+      document.getElementById('paystackStatus').className = 'err';
+    }
+  }
+
+  async function savePaystackSettings(){
+    const statusEl = document.getElementById('paystackStatus');
+    const paystack_test_key = document.getElementById('paystackTestKey').value.trim();
+    const paystack_live_key = document.getElementById('paystackLiveKey').value.trim();
+    const use_live = document.getElementById('useLiveToggle').checked;
+    try{
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/site_settings?id=eq.main`, {
+        method: 'PATCH',
+        headers: { ...authHeaders(), Prefer: 'return=minimal' },
+        body: JSON.stringify({ paystack_test_key, paystack_live_key, use_live })
+      });
+      if(res.ok){
+        statusEl.textContent = use_live
+          ? 'Saved — the site is now charging REAL cards via the live key.'
+          : 'Saved — the site is using the test key (no real charges).';
+        statusEl.className = use_live ? 'err' : 'ok';
+      } else {
+        statusEl.textContent = `Failed (HTTP ${res.status})`;
+        statusEl.className = 'err';
+      }
+    } catch(e){
+      statusEl.textContent = 'Network error: ' + e.message;
+      statusEl.className = 'err';
+    }
+  }
+
+  async function saveCountdown(){
+    const statusEl = document.getElementById('countdownStatus');
+    const sales_start_date = document.getElementById('salesStartDate').value || null;
+    try{
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/site_settings?id=eq.main`, {
+        method: 'PATCH',
+        headers: { ...authHeaders(), Prefer: 'return=minimal' },
+        body: JSON.stringify({ sales_start_date })
+      });
+      if(res.ok){
+        statusEl.textContent = 'Saved.';
+        statusEl.className = 'ok';
+        startCountdownDisplay(sales_start_date);
+      } else {
+        statusEl.textContent = `Failed (HTTP ${res.status})`;
+        statusEl.className = 'err';
+      }
+    } catch(e){
+      statusEl.textContent = 'Network error: ' + e.message;
+      statusEl.className = 'err';
+    }
+  }
+
+  function startCountdownDisplay(dateStr){
+    if(countdownTimer) clearInterval(countdownTimer);
+    const displayEl = document.getElementById('countdownDisplay');
+    if(!dateStr){ displayEl.textContent = 'No sales-start date set.'; return; }
+
+    function render(){
+      const target = new Date(dateStr + 'T00:00:00');
+      const now = new Date();
+      const diffMs = target - now;
+      if(diffMs <= 0){
+        displayEl.textContent = 'Ticket sales are live now.';
+        displayEl.style.color = '#1a7a2a';
+      } else {
+        const days = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+        displayEl.textContent = `Tix payments start in ${days} day${days === 1 ? '' : 's'}.`;
+        displayEl.style.color = 'var(--purple)';
+      }
+    }
+    render();
+    countdownTimer = setInterval(render, 60000);
+  }
 
   // ---- ticket availability ----
   async function loadTickets(){
