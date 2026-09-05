@@ -62,15 +62,30 @@ function emailHtml({ name, ticketType, code }){
   </div>`;
 }
 
-module.exports = async (req, res) => {
+// Disables Vercel's automatic JSON body parsing for this function. Paystack signs the webhook
+// using the exact raw bytes of what it sent — if we let Vercel parse the body into an object
+// and then re-serialize it to check the signature, the re-serialized version doesn't always
+// match byte-for-byte, and the signature check silently fails every time. Reading the raw
+// bytes ourselves (below) is the only reliable way to verify it.
+
+function getRawBody(req){
+  return new Promise((resolve, reject) => {
+    let data = '';
+    req.on('data', chunk => { data += chunk; });
+    req.on('end', () => resolve(data));
+    req.on('error', reject);
+  });
+}
+
+async function handler(req, res) {
   if (req.method !== 'POST') {
     res.status(405).send('Method not allowed');
     return;
   }
 
+  const rawBody = await getRawBody(req);
   const secret = process.env.PAYSTACK_SECRET_KEY;
   const signature = req.headers['x-paystack-signature'];
-  const rawBody = JSON.stringify(req.body);
   const expectedSignature = crypto.createHmac('sha512', secret).update(rawBody).digest('hex');
 
   if (signature !== expectedSignature) {
@@ -78,7 +93,7 @@ module.exports = async (req, res) => {
     return;
   }
 
-  const event = req.body;
+  const event = JSON.parse(rawBody);
   if (event.event !== 'charge.success') {
     res.status(200).send('Ignored (not a successful charge)');
     return;
@@ -150,4 +165,7 @@ module.exports = async (req, res) => {
   }
 
   res.status(200).send('Sale recorded and confirmation sent');
-};
+}
+
+handler.config = { api: { bodyParser: false } };
+module.exports = handler;
