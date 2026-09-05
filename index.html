@@ -6,7 +6,6 @@
 <title>FMS — Full Midnight Shutdown | Freshers Meet Staylite Edition | LASU</title>
 <meta name="description" content="FMS: Full Midnight Shutdown — Freshers Meet Staylite Edition at LASU. Government presents, packaged by Cipher PR. Saturday 14th November, doors 10PM. Limited entry, tickets from ₦3,500.">
 <meta name="theme-color" content="#7c2fb0">
-<meta name="google-site-verification" content="HZbrQMp4lpEEs77T6-VppNbqCbLS8vjosxgxeipHFXs" />
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%231a1512'/%3E%3Ctext x='50' y='68' font-family='Georgia,serif' font-size='60' font-weight='900' fill='%23ff3fa8' text-anchor='middle'%3E%E2%98%85%3C/text%3E%3C/svg%3E">
 <link rel="canonical" href="https://fullmidnightshutdown.vercel.app/">
 <!-- NOTE: once deployed, update the canonical URL above and the og:image/twitter:image/JSON-LD image paths
@@ -34,6 +33,7 @@
   "@type": "Event",
   "name": "FMS - Full Midnight Shutdown (Freshers Meet Staylite Edition)",
   "startDate": "2026-11-14T22:00:00+01:00",
+  "endDate": "2026-11-15T04:00:00+01:00",
   "eventAttendanceMode": "https://schema.org/OfflineEventAttendanceMode",
   "eventStatus": "https://schema.org/EventScheduled",
   "description": "FMS - Full Midnight Shutdown is LASU's freshers welcome party, bringing freshers and staylites together for one night. Government presents, packaged by Cipher PR.",
@@ -48,7 +48,11 @@
     }
   },
   "image": ["https://fullmidnightshutdown.vercel.app/assets/preview.jpg"],
-  "organizer": { "@type": "Organization", "name": "Cipher PR" },
+  "organizer": {
+    "@type": "Organization",
+    "name": "Cipher PR",
+    "url": "https://wa.me/2348147232337"
+  },
   "offers": [
     {
       "@type": "Offer",
@@ -56,6 +60,7 @@
       "price": "3500",
       "priceCurrency": "NGN",
       "availability": "https://schema.org/InStock",
+      "validFrom": "2026-09-05T00:00:00+01:00",
       "url": "https://fullmidnightshutdown.vercel.app/#tickets"
     },
     {
@@ -64,7 +69,43 @@
       "price": "4000",
       "priceCurrency": "NGN",
       "availability": "https://schema.org/InStock",
+      "validFrom": "2026-09-05T00:00:00+01:00",
       "url": "https://fullmidnightshutdown.vercel.app/#tickets"
+    }
+  ]
+}
+</script>
+
+<!-- FAQ structured data, mirroring the real FAQ content in the Tickets section below —
+     this is what can earn an FAQ rich-result snippet in Google search -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "How do I qualify for the ₦3,500 Freshers Squad Rate?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "It's reserved for the first 30 freshers, and you need to roll in with 2 more freshers — a group of 3 or more. DM Cipher PR to confirm your group before you check out."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "I'm a staylite, not a fresher — which ticket is mine?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "The Freshers Squad Rate is fresher-only. Staylites go through the Standard ₦4,000 ticket — same access, same night."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "I've paid — how do I get my ticket confirmed?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "DM Cipher PR directly with your payment reference and full name, and they'll sort your ticket confirmation."
+      }
     }
   ]
 }
