@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+Disallow: /api/
+
+Sitemap: https://fullmidnightshutdown.vercel.app/sitemap.xml
